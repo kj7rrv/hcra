@@ -16,7 +16,7 @@ def cycle():
     except Exception as e:
         #server.send_message_to_all('err%noconn%Server failed to capture screenshot')
         for client in clients.values():
-            client.send('err%noconn%Server failed to capture screenshot')
+            client.send('err%noconn%Server failed to capture screenshot', 'ERR')
         time.sleep(3)
         return
 
@@ -32,25 +32,22 @@ class Client:
         self.client = client
         self.server = server
         self.queue = queue.Queue()
+        self.items = {}
         self.good = True
     
     def send(self, item, name):
-        self.messages[name] = item
+        self.items[name] = item
 
     def ack(self):
-        self.queue.put(['ack'])
+        self.server.send_message(self.client, 'ack')
+        self.good = False
 
     def cycle(self):
         while not self.good:
             pass
-
-        item = self.queue.get()
-
-        if item[0] == 'msg':
-            self.server.send_message(self.client, item[1])
-        else:
-            self.server.send_message(self.client, 'ack')
-            self.good = False
+        for name, item in self.items.items():
+            self.server.send_message(self.client, item)
+            del self.items[name]
 
     def run(self):
         while True:
@@ -61,7 +58,7 @@ def do_img(imgname):
     #server.send_message_to_all(img(imgname))
     for client in clients.values():
         print(client)
-        client.send(img(imgname), img)
+        client.send(img(imgname), imgname)
 
 
 def img(imgname):
@@ -99,7 +96,7 @@ def do_touch(client, server, message):
             x, y, w = int(x), int(y), int(w)
             hcapi.touch(x, y, w)
         else:
-            clients[client['id']].send(f'badpass')
+            clients[client['id']].send(f'badpass', 'BADPASS')
 
 def do_cycles():
     while True:
