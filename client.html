@@ -105,6 +105,8 @@
 						errorbox.style.display = 'block'
 						canvas.style.display = 'none'
 						console.error('Server reported error: ' + code + ': ' + msg)
+					} else if (type == 'ack') {
+						ws.send('ack')
 					}
 				}
 				ws.onerror = setup
