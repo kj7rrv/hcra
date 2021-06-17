@@ -6,7 +6,6 @@ import random
 import time
 import shutil
 import tempfile
-import queue
 from websocket_server import WebsocketServer
 
 
@@ -38,7 +37,6 @@ class Client:
     def __init__(self, client, server):
         self.client = client
         self.server = server
-        self.queue = queue.Queue()
         self.items = {}
         self.lock = threading.Lock()
         self.good = True
