@@ -1,6 +1,5 @@
 import os
 import base64
-import hcapi
 import threading
 import logging
 import random
@@ -10,11 +9,19 @@ import tempfile
 import queue
 from websocket_server import WebsocketServer
 
+
+# Select backend - backends.port8080 uses HamClock's port 8080 service;
+# backends.x11 uses an X11 server (typically Xvfb) (make sure DISPLAY is set
+# correctly!)
+
+#import backends.port8080 as hcapi
+import backends.x11 as hcapi
+
+
 def cycle():
     try:
         changed = hcapi.get_img()
     except Exception as e:
-        #server.send_message_to_all('err%noconn%Server failed to capture screenshot')
         for client in clients.values():
             client.send('err%noconn%Server failed to capture screenshot', 'ERR')
         time.sleep(3)
@@ -109,7 +116,7 @@ def do_touch(client, server, message):
     else:
         _, password, x, y, w, is_long = message.split(' ')
         if password == 'password':
-            x, y, w, is_long = int(x), int(y), int(w), bool(is_long)
+            x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
             hcapi.touch(x, y, w, is_long)
         else:
             clients[client['id']].send(f'badpass', 'BADPASS')

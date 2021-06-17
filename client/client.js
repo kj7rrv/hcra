@@ -70,16 +70,18 @@ function touch(e) {
 	click_timeout = setTimeout(function() {
 		is_short = false
 	}, 1000)
+	is_short = true
 }
 
 
 function release(e) {
-	clearTimeout(click_timeout)
 	x = e.layerX
 	y = e.layerY
 	w = displayWidth
-	length = is_short?0:1
+	length = is_short?false:true
 	ws.send('touch ' + localStorage.getItem('password') + ' ' + x + ' ' + y + ' ' + w + ' ' + length)
+	clearTimeout(click_timeout)
+	is_short = true
 }
 
 
