@@ -33,21 +33,33 @@ class Client:
         self.server = server
         self.queue = queue.Queue()
         self.items = {}
+        self.lock = threading.Lock()
         self.good = True
     
     def send(self, item, name):
-        self.items[name] = item
+        with self.lock:
+            self.items[name] = item
 
     def ack(self):
-        self.server.send_message(self.client, 'ack')
-        self.good = False
+        with self.lock:
+            try:
+                self.server.send_message(self.client, 'ack')
+                self.good = False
+            except BrokenPipeError:
+                pass
 
     def cycle(self):
-        while not self.good:
-            pass
-        for name, item in self.items.items():
-            self.server.send_message(self.client, item)
-            del self.items[name]
+        with self.lock:
+            try:
+                while not self.good:
+                    pass
+                for name, item in list(self.items.items()):
+                    if not self.good:
+                        break
+                    self.server.send_message(self.client, item)
+                    del self.items[name]
+            except BrokenPipeError:
+                pass
 
     def run(self):
         while True:
@@ -55,9 +67,7 @@ class Client:
 clients = {}
 
 def do_img(imgname):
-    #server.send_message_to_all(img(imgname))
     for client in clients.values():
-        print(client)
         client.send(img(imgname), imgname)
 
 
@@ -70,6 +80,12 @@ def img(imgname):
     return response
 
 def new_client(client, server):
+    if clients:
+        server.send_message(client, 'err%*inuse%Server already in use')
+        client['handler'].send_text("", opcode=0x8)
+        return
+
+    clients[client['id']] = Client(client, server)
     try:
         imgname = hcapi.get_full_img()
     except Exception as e:
@@ -91,17 +107,24 @@ def do_touch(client, server, message):
     if action == 'ack':
         clients[client['id']].good = True
     else:
-        _, password, x, y, w = message.split(' ')
+        _, password, x, y, w, is_long = message.split(' ')
         if password == 'password':
-            x, y, w = int(x), int(y), int(w)
-            hcapi.touch(x, y, w)
+            x, y, w, is_long = int(x), int(y), int(w), bool(is_long)
+            hcapi.touch(x, y, w, is_long)
         else:
             clients[client['id']].send(f'badpass', 'BADPASS')
 
+def client_left(client, server):
+    clients[client['id']].good = False
+    del clients[client['id']]
+
 def do_cycles():
     while True:
-        cycle()
-        time.sleep(0.2)
+        if clients:
+            cycle()
+            time.sleep(0.4)
+        else:
+            time.sleep(1)
 
 tmp = tempfile.mkdtemp(prefix="HCRA-")
 try:
@@ -112,6 +135,7 @@ try:
     threading.Thread(target=do_cycles).start()
     server.set_fn_new_client(new_client)
     server.set_fn_message_received(do_touch)
+    server.set_fn_client_left(client_left)
     server.run_forever()
 finally:
     os.chdir('/')

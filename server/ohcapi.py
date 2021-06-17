@@ -11,11 +11,6 @@ def get_img():
 
     os.system('convert full_img.bmp -resize 800x480 img.bmp')
         
-    #crops = []
-    #for n in range(10):
-    #    for m in range(6):
-    #        crops.append(f'80x80+{n*80}+{m*80}')
-    #print(crops)
     with open('crops.json') as f:
         crops = json.load(f)
 
@@ -47,7 +42,7 @@ def get_full_img():
 
     return 'full.jpg'
 
-def touch(x, y, w):
+def touch(x, y, w, is_long):
     x = round(800 * x / w)
     y = round(800 * y / w)
-    requests.get(f'http://localhost:8080/set_touch?x={x}&y={y}&hold={0}')
+    requests.get(f'http://localhost:8080/set_touch?x={x}&y={y}&hold={1 if is_long else 0}')

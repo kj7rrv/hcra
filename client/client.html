@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>HamClock</title>
+		<link rel=stylesheet href=client.css>
+	</head>
+	<body>
+		<div id=login>
+			<h1>HamClock Remote Access</h1>
+			<form>
+				<div class=loginline><label for=url>Server URL:</label> <input name=url id=url></div>
+				<div class=loginline><label for=password>Password:</label> <input name=password id=password type=password></div>
+				<div class=loginline><button id=start>Start</button></div>
+			</form>
+		</div>
+		<div id=holder style="display:none">
+			<div id=errorbox style="width: 800px; height: 480px">Loading...</div>
+			<canvas id=canvas width=800 height=480 style="width: 800px; height: 480px; display: none"></canvas>
+		</div>
+		<script src=client.js></script>
+	</body>
+</html>
