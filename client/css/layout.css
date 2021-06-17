@@ -1,34 +1,27 @@
-body {
-	background-color: black;
-	color: white;
-	font-family: sans-serif;
-	font-size: 16pt;
-}
 input {
-	background-color: #222222;
 	border: none;
-	color: white;
-	font-size: 16pt;
-	text-align: left !important;
 }
+
 button {
-	background-color: #00FF00;
 	border: none;
-	font-size: 16pt;
 }
+
 .loginline {
 	padding: 3px;
 }
+
 form {
 	float: left;
 }
+
 form * {
 	text-align: right;
 }
+
 #errorbox {
-	font-size: 200%;
 	text-align: center
 }
+
 #holder {
 	margin: 0;
 	padding: 0;
@@ -36,6 +29,7 @@ form * {
 	height: 100vh;
 	text-align: center
 }
+
 #holder * {
 	margin: 0 auto;
 	position: absolute;
@@ -43,6 +37,7 @@ form * {
 	left: 50%;
 	transform: translate(-50%, -50%);
 }
+
 #errorbox * {
 	position: static;
 }
