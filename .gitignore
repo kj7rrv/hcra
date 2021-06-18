@@ -1,4 +1,4 @@
 __pycache__
-server/pieces
-server/newlist
-server/oldlist
+pieces
+newlist
+oldlist
