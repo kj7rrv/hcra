@@ -7,19 +7,21 @@ import time
 import shutil
 import tempfile
 from websocket_server import WebsocketServer
-
+import imgproc as hcapi
 
 # Select backend - backends.port8080 uses HamClock's port 8080 service;
 # backends.x11 uses an X11 server (typically Xvfb) (make sure DISPLAY is set
 # correctly!)
 
-#import backends.port8080 as hcapi
-import backends.x11 as hcapi
+#import backends.port8080 as backend
+import backends.x11 as backend
+
+hcapi.backend = backend
 
 
 def cycle():
     try:
-        changed = hcapi.get_img()
+        changed = hcapi.get_split_imgs()
     except Exception as e:
         for client in clients.values():
             client.send('err%noconn%Server failed to capture screenshot', 'ERR')

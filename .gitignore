@@ -1,1 +1,4 @@
 __pycache__
+server/pieces
+server/newlist
+server/oldlist
