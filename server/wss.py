@@ -8,6 +8,7 @@ import shutil
 import tempfile
 from websocket_server import WebsocketServer
 import imgproc as hcapi
+import argon2
 
 # Select backend - backends.port8080 uses HamClock's port 8080 service;
 # backends.x11 uses an X11 server (typically Xvfb) (make sure DISPLAY is set
@@ -17,6 +18,9 @@ import imgproc as hcapi
 import backends.x11 as backend
 
 hcapi.backend = backend
+
+
+ph = argon2.PasswordHasher()
 
 
 def cycle():
@@ -115,11 +119,13 @@ def do_touch(client, server, message):
         clients[client['id']].good = True
     else:
         _, password, x, y, w, is_long = message.split(' ')
-        if password == 'password':
+        try:
+            ph.verify('$argon2id$v=19$m=102400,t=2,p=8$NExqSUh+0wzBznBG9jM6ww$MkaPLZ6WPAegb8BI+IL7Bg', password)
             x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
             hcapi.touch(x, y, w, is_long)
-        else:
+        except argon2.exceptions.VerifyMismatchError:
             clients[client['id']].send(f'badpass', 'BADPASS')
+            client['handler'].send_text("", opcode=0x8)
 
 def client_left(client, server):
     clients[client['id']].good = False
