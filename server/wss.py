@@ -95,7 +95,7 @@ def new_client(client, server):
     clients[client['id']] = Client(client, server)
     try:
         imgname = hcapi.get_full_img()
-    except Exception as e:
+    except Exceptidon as e:
         server.send_message(client, 'err%noconn%Server failed to capture screenshot')
         return
 
