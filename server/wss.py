@@ -17,10 +17,15 @@ import imgproc as hcapi
 import argon2
 import asyncio
 import importlib
-import parse_config 
+import parse_config
+import sys
 
+try:
+    conf = sys.argv[1]
+except IndexError:
+    conf = 'conf.txt'
 
-with open('conf.txt') as f:
+with open(conf) as f:
     config_data = parse_config.load(f)
 
 hcapi.backend = importlib.import_module(f'backends.{config_data["backend"]}')
