@@ -1,14 +1,14 @@
 import os
 import base64
 import threading
-import logging
 import random
 import time
 import shutil
 import tempfile
-from websocket_server import WebsocketServer
+import tornado.web, tornado.websocket, tornado.ioloop
 import imgproc as hcapi
 import argon2
+import asyncio
 
 # Select backend - backends.port8080 uses HamClock's port 8080 service;
 # backends.x11 uses an X11 server (typically Xvfb) (make sure DISPLAY is set
@@ -19,15 +19,15 @@ import backends.x11 as backend
 
 hcapi.backend = backend
 
-
 ph = argon2.PasswordHasher()
 
+client = None
 
 def cycle():
     try:
         changed = hcapi.get_split_imgs()
     except Exception as e:
-        for client in clients.values():
+        if client is not None:
             client.send('err%noconn%Server failed to capture screenshot', 'ERR')
         time.sleep(3)
         return
@@ -35,50 +35,12 @@ def cycle():
     for i in changed:
         threading.Thread(target=do_img, args=(i,)).start()
 
-    for client in clients.values():
+    if client is not None:
         client.ack()
 
 
-class Client:
-    def __init__(self, client, server):
-        self.client = client
-        self.server = server
-        self.items = {}
-        self.lock = threading.Lock()
-        self.good = True
-    
-    def send(self, item, name):
-        with self.lock:
-            self.items[name] = item
-
-    def ack(self):
-        with self.lock:
-            try:
-                self.server.send_message(self.client, 'ack')
-                self.good = False
-            except BrokenPipeError:
-                pass
-
-    def cycle(self):
-        with self.lock:
-            try:
-                while not self.good:
-                    pass
-                for name, item in list(self.items.items()):
-                    if not self.good:
-                        break
-                    self.server.send_message(self.client, item)
-                    del self.items[name]
-            except BrokenPipeError:
-                pass
-
-    def run(self):
-        while True:
-            self.cycle()
-clients = {}
-
 def do_img(imgname):
-    for client in clients.values():
+    if client is not None:
         client.send(img(imgname), imgname)
 
 
@@ -90,50 +52,85 @@ def img(imgname):
 
     return response
 
-def new_client(client, server):
-    if clients:
-        server.send_message(client, 'err%*inuse%Server already in use')
-        client['handler'].send_text("", opcode=0x8)
-        return
+class HCRAServer(tornado.websocket.WebSocketHandler):
+    def open(self):
+        global client
+        if client is not None:
+            self.write_message('err%*inuse%Server already in use')
+            self.close()
+        else:
+            client = self
+            self.items = {}
+            self.lock = threading.Lock()
+            self.good = True
+            try:
+                imgname = hcapi.get_full_img()
+            except Exception as e:
+                self.write_message('err%noconn%Server failed to capture screenshot')
+                return
 
-    clients[client['id']] = Client(client, server)
-    try:
-        imgname = hcapi.get_full_img()
-    except Exceptidon as e:
-        server.send_message(client, 'err%noconn%Server failed to capture screenshot')
-        return
+            with open(imgname, 'rb') as f:
+                img = f.read()
+            os.unlink(imgname)
+            self.write_message(f'pic%0x0%data:imgage/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
+            self.ack()
+            loop = asyncio.new_event_loop()
+            threading.Thread(target=self.run, args=(loop,)).start()
 
-    clients[client['id']] = Client(client, server)
+    def send(self, item, name):
+        with self.lock:
+            self.items[name] = item
 
-    with open(imgname, 'rb') as f:
-        img = f.read()
-    os.unlink(imgname)
-    server.send_message(client, f'pic%0x0%data:imgage/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
-    clients[client['id']] = Client(client, server)
-    clients[client['id']].ack()
-    threading.Thread(target=clients[client['id']].run).start()
+    def ack(self):
+        with self.lock:
+            self.items['ack'] = 'ack'
 
-def do_touch(client, server, message):
-    action = message.split(' ', 1)[0]
-    if action == 'ack':
-        clients[client['id']].good = True
-    else:
-        _, password, x, y, w, is_long = message.split(' ')
-        try:
-            ph.verify('$argon2id$v=19$m=102400,t=2,p=8$NExqSUh+0wzBznBG9jM6ww$MkaPLZ6WPAegb8BI+IL7Bg', password)
-            x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
-            hcapi.touch(x, y, w, is_long)
-        except argon2.exceptions.VerifyMismatchError:
-            clients[client['id']].send(f'badpass', 'BADPASS')
-            client['handler'].send_text("", opcode=0x8)
+    async def cycle(self):
+        with self.lock:
+            while not self.good:
+                pass
+            for name, item in list(self.items.items()):
+                if not self.good:
+                    break
+                self.write_message(item)
+                del self.items[name]
+                if item == 'ack':
+                    self.good = False
 
-def client_left(client, server):
-    clients[client['id']].good = False
-    del clients[client['id']]
+    def run(self, loop):
+        asyncio.set_event_loop(loop)
+        while True:
+            if client is not self:
+                break
+            loop.run_until_complete(self.cycle())
+
+    def on_close(self):
+        global client
+        if client is self:
+            self.good = None
+            client = None
+
+    def on_message(self, message):
+        action = message.split(' ', 1)[0]
+        if action == 'ack':
+            self.good = True
+        else:
+            _, password, x, y, w, is_long = message.split(' ')
+            try:
+                ph.verify('$argon2id$v=19$m=102400,t=2,p=8$NExqSUh+0wzBznBG9jM6ww$MkaPLZ6WPAegb8BI+IL7Bg', password)
+                x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
+                hcapi.touch(x, y, w, is_long)
+            except argon2.exceptions.VerifyMismatchError:
+                self.send(f'err%*badpass%Incorrect password', 'BADPASS')
+                self.close()
+
+    def check_origin(self, origin):
+        return True
+
 
 def do_cycles():
     while True:
-        if clients:
+        if client is not None:
             cycle()
             time.sleep(0.4)
         else:
@@ -144,12 +141,14 @@ try:
     shutil.copy('crops.json', tmp)
     os.chdir(tmp)
     os.mkdir('pieces')
-    server = WebsocketServer(1234, host='0.0.0.0', loglevel=logging.INFO)
+
     threading.Thread(target=do_cycles).start()
-    server.set_fn_new_client(new_client)
-    server.set_fn_message_received(do_touch)
-    server.set_fn_client_left(client_left)
-    server.run_forever()
+
+    application = tornado.web.Application([
+        (r"/", HCRAServer),
+    ])
+    application.listen(1234)
+    tornado.ioloop.IOLoop.current().start()
 finally:
     os.chdir('/')
     shutil.rmtree(tmp)
