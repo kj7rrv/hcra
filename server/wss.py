@@ -1,17 +1,17 @@
-import os
-import base64
-import threading
-import random
-import time
-import shutil
-import tempfile
-import tornado.web, tornado.websocket, tornado.ioloop
-import imgproc as hcapi
 import argon2
 import asyncio
+import base64
+import imgproc
 import importlib
+import os
 import parse_config
+import random
+import shutil
 import sys
+import tempfile
+import threading
+import time
+import tornado.web, tornado.websocket, tornado.ioloop
 
 try:
     conf = sys.argv[1]
@@ -21,9 +21,9 @@ except IndexError:
 with open(conf) as f:
     config_data = parse_config.load(f)
 
-hcapi.backend = importlib.import_module(f'backends.{config_data["backend"]}')
-hcapi.backend.config = config_data
-hcapi.config = config_data
+imgproc.backend = importlib.import_module(f'backends.{config_data["backend"]}')
+imgproc.backend.config = config_data
+imgproc.config = config_data
 
 ph = argon2.PasswordHasher()
 
@@ -42,7 +42,7 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
             self.lock = threading.Lock()
             self.good = True
             try:
-                imgname = hcapi.get_full_img()
+                imgname = imgproc.get_full_img()
             except Exception as e:
                 self.write_message('err%noconn%Server failed to capture screenshot')
                 return
@@ -97,7 +97,7 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
             try:
                 ph.verify(config_data['password_argon2'], password)
                 x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
-                hcapi.touch(x, y, w, is_long)
+                imgproc.touch(x, y, w, is_long)
             except argon2.exceptions.VerifyMismatchError:
                 self.send(f'err%*badpass%Incorrect password', 'BADPASS')
                 self.close()
@@ -108,7 +108,7 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
 
 def cycle():
     try:
-        changed = hcapi.get_split_imgs()
+        changed = imgproc.get_split_imgs()
     except Exception as e:
         if client is not None:
             client.send('err%noconn%Server failed to capture screenshot', 'ERR')
