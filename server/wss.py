@@ -1,10 +1,3 @@
-# Select backend - 'port8080' uses HamClock's port 8080 service; 'x11' uses an
-# X11 server (typically Xvfb) (make sure DISPLAY is set correctly!)
-
-use_backend = 'x11'
-# use_backend = 'port8080'
-
-
 import os
 import base64
 import threading
@@ -17,9 +10,20 @@ import imgproc as hcapi
 import argon2
 import asyncio
 import importlib
+import parse_config
+import sys
 
+try:
+    conf = sys.argv[1]
+except IndexError:
+    conf = 'conf.txt'
 
-hcapi.backend = importlib.import_module(f'backends.{use_backend}')
+with open(conf) as f:
+    config_data = parse_config.load(f)
+
+hcapi.backend = importlib.import_module(f'backends.{config_data["backend"]}')
+hcapi.backend.config = config_data
+hcapi.config = config_data
 
 ph = argon2.PasswordHasher()
 
@@ -91,7 +95,7 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
         else:
             _, password, x, y, w, is_long = message.split(' ')
             try:
-                ph.verify('$argon2id$v=19$m=102400,t=2,p=8$NExqSUh+0wzBznBG9jM6ww$MkaPLZ6WPAegb8BI+IL7Bg', password)
+                ph.verify(config_data['password_argon2'], password)
                 x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
                 hcapi.touch(x, y, w, is_long)
             except argon2.exceptions.VerifyMismatchError:
