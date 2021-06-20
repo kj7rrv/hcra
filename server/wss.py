@@ -1,10 +1,3 @@
-# Select backend - 'port8080' uses HamClock's port 8080 service; 'x11' uses an
-# X11 server (typically Xvfb) (make sure DISPLAY is set correctly!)
-
-# use_backend = 'x11'
-# use_backend = 'port8080'
-
-
 import os
 import base64
 import threading
