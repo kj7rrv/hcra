@@ -1,9 +1,8 @@
-# Select backend - backends.port8080 uses HamClock's port 8080 service;
-# backends.x11 uses an X11 server (typically Xvfb) (make sure DISPLAY is set
-# correctly!)
+# Select backend - 'port8080' uses HamClock's port 8080 service; 'x11' uses an
+# X11 server (typically Xvfb) (make sure DISPLAY is set correctly!)
 
-#import backends.port8080 as backend
-import backends.x11 as backend
+use_backend = 'x11'
+# use_backend = 'port8080'
 
 
 import os
@@ -17,9 +16,10 @@ import tornado.web, tornado.websocket, tornado.ioloop
 import imgproc as hcapi
 import argon2
 import asyncio
+import importlib
 
 
-hcapi.backend = backend
+hcapi.backend = importlib.import_module(f'backends.{use_backend}')
 
 ph = argon2.PasswordHasher()
 
