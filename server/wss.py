@@ -1,3 +1,11 @@
+# Select backend - backends.port8080 uses HamClock's port 8080 service;
+# backends.x11 uses an X11 server (typically Xvfb) (make sure DISPLAY is set
+# correctly!)
+
+#import backends.port8080 as backend
+import backends.x11 as backend
+
+
 import os
 import base64
 import threading
@@ -10,12 +18,6 @@ import imgproc as hcapi
 import argon2
 import asyncio
 
-# Select backend - backends.port8080 uses HamClock's port 8080 service;
-# backends.x11 uses an X11 server (typically Xvfb) (make sure DISPLAY is set
-# correctly!)
-
-#import backends.port8080 as backend
-import backends.x11 as backend
 
 hcapi.backend = backend
 
@@ -23,34 +25,6 @@ ph = argon2.PasswordHasher()
 
 client = None
 
-def cycle():
-    try:
-        changed = hcapi.get_split_imgs()
-    except Exception as e:
-        if client is not None:
-            client.send('err%noconn%Server failed to capture screenshot', 'ERR')
-        time.sleep(3)
-        return
-
-    for i in changed:
-        threading.Thread(target=do_img, args=(i,)).start()
-
-    if client is not None:
-        client.ack()
-
-
-def do_img(imgname):
-    if client is not None:
-        client.send(img(imgname), imgname)
-
-
-def img(imgname):
-    with open(f'pieces/{imgname}.jpg', 'rb') as f:
-        img = f.read()
-
-    response = f'pic%{imgname}%data:imgage/jpeg;base64,{base64.b64encode(img).decode("utf-8")}'
-
-    return response
 
 class HCRAServer(tornado.websocket.WebSocketHandler):
     def open(self):
@@ -128,6 +102,36 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
         return True
 
 
+def cycle():
+    try:
+        changed = hcapi.get_split_imgs()
+    except Exception as e:
+        if client is not None:
+            client.send('err%noconn%Server failed to capture screenshot', 'ERR')
+        time.sleep(3)
+        return
+
+    for i in changed:
+        threading.Thread(target=do_img, args=(i,)).start()
+
+    if client is not None:
+        client.ack()
+
+
+def do_img(imgname):
+    if client is not None:
+        client.send(img(imgname), imgname)
+
+
+def img(imgname):
+    with open(f'pieces/{imgname}.jpg', 'rb') as f:
+        img = f.read()
+
+    response = f'pic%{imgname}%data:imgage/jpeg;base64,{base64.b64encode(img).decode("utf-8")}'
+
+    return response
+
+
 def do_cycles():
     while True:
         if client is not None:
@@ -135,6 +139,7 @@ def do_cycles():
             time.sleep(0.4)
         else:
             time.sleep(1)
+
 
 tmp = tempfile.mkdtemp(prefix="HCRA-")
 try:
