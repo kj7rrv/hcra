@@ -6,6 +6,8 @@ import importlib
 import os
 import parse_config
 import random
+import requests
+import secrets
 import shutil
 import sys
 import tempfile
@@ -30,30 +32,24 @@ ph = argon2.PasswordHasher()
 client = None
 
 
-class HCRAServer(tornado.websocket.WebSocketHandler):
-    def open(self):
+token = secrets.token_urlsafe(64)
+
+
+class DisconnectError(BaseException):
+    pass
+
+
+class Client:
+    def __init__(self, conn):
         global client
         if client is not None:
-            self.write_message('err%*inuse%Server already in use')
-            self.close()
-        else:
-            client = self
-            self.items = {}
-            self.lock = threading.Lock()
-            self.good = True
-            try:
-                imgname = imgproc.get_full_img()
-            except Exception as e:
-                self.write_message('err%noconn%Server failed to capture screenshot')
-                return
+            raise DisconnectError('err%*inuse%Server already in use')
 
-            with open(imgname, 'rb') as f:
-                img = f.read()
-            os.unlink(imgname)
-            self.write_message(f'pic%0x0%data:imgage/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
-            self.ack()
-            loop = asyncio.new_event_loop()
-            threading.Thread(target=self.run, args=(loop,)).start()
+        client = self
+        self.conn = conn
+        self.items = {}
+        self.lock = threading.Lock()
+        self.good = True
 
     def send(self, item, name):
         with self.lock:
@@ -61,37 +57,53 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
 
     def ack(self):
         with self.lock:
-            self.items['ack'] = 'ack'
+            self.good = False
 
-    async def cycle(self):
+    def get_item_to_send(self):
         with self.lock:
-            while not self.good:
-                pass
-            for name, item in list(self.items.items()):
-                if not self.good:
-                    break
-                self.write_message(item)
+            if self.items:
+                name, content = list(self.items.items())[0]
                 del self.items[name]
-                if item == 'ack':
-                    self.good = False
+                return name, content
+            elif not self.good:
+                return 'ack', 'ack'
+            else:
+                return None, None
 
-    def run(self, loop):
-        asyncio.set_event_loop(loop)
-        while True:
-            if client is not self:
-                break
-            loop.run_until_complete(self.cycle())
+
+
+class HCRAServer(tornado.websocket.WebSocketHandler):
+    def open(self):
+        try:
+            self.client = Client(self)
+        except DisconnectError as e:
+            self.write_message(str(e))
+            return
+
+        try:
+            imgname = imgproc.get_full_img()
+        except Exception as e:
+            self.write_message('err%noconn%Server failed to capture screenshot')
+            return
+
+        with open(imgname, 'rb') as f:
+            img = f.read()
+        os.unlink(imgname)
+        self.write_message(f'pic%0x0%data:imgage/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
+        self.is_open = True
+        self.client.ack()
 
     def on_close(self):
         global client
-        if client is self:
-            self.good = None
+        if client is self.client:
+            self.client.good = None
             client = None
+        self.is_open = False
 
     def on_message(self, message):
         action = message.split(' ', 1)[0]
         if action == 'ack':
-            self.good = True
+            self.client.good = True
         else:
             _, password, x, y, w, is_long = message.split(' ')
             try:
@@ -99,12 +111,11 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
                 x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
                 imgproc.touch(x, y, w, is_long)
             except argon2.exceptions.VerifyMismatchError:
-                self.send(f'err%*badpass%Incorrect password', 'BADPASS')
+                self.client.send(f'err%*badpass%Incorrect password', 'BADPASS')
                 self.close()
 
     def check_origin(self, origin):
         return True
-
 
 def cycle():
     try:
@@ -115,8 +126,11 @@ def cycle():
         time.sleep(3)
         return
 
+    threads = []
     for i in changed:
-        threading.Thread(target=do_img, args=(i,)).start()
+        thread = threading.Thread(target=do_img, args=(i,))
+        threads.append(thread)
+        thread.start()
 
     if client is not None:
         client.ack()
@@ -145,6 +159,22 @@ def do_cycles():
             time.sleep(1)
 
 
+
+
+class Cycler(tornado.web.RequestHandler):
+    def get(self):
+        if client is not None:
+            name, item = client.get_item_to_send()
+            if item is not None:
+                client.conn.write_message(item)
+        self.write('OK')
+
+
+def get_token():
+    while True:
+        requests.get('http://localhost:1234/' + token)
+
+
 tmp = tempfile.mkdtemp(prefix="HCRA-")
 try:
     shutil.copy('crops.json', tmp)
@@ -155,8 +185,10 @@ try:
 
     application = tornado.web.Application([
         (r"/", HCRAServer),
+        ('/' + token, Cycler),
     ])
     application.listen(1234)
+    threading.Thread(target=get_token).start()
     tornado.ioloop.IOLoop.current().start()
 finally:
     os.chdir('/')
