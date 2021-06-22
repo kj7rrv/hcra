@@ -89,7 +89,7 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
         with open(imgname, 'rb') as f:
             img = f.read()
         os.unlink(imgname)
-        self.write_message(f'pic%0x0%data:imgage/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
+        self.write_message(f'pic%0x0%data:image/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
         self.is_open = True
         self.client.ack()
 
@@ -145,7 +145,7 @@ def img(imgname):
     with open(f'pieces/{imgname}.jpg', 'rb') as f:
         img = f.read()
 
-    response = f'pic%{imgname}%data:imgage/jpeg;base64,{base64.b64encode(img).decode("utf-8")}'
+    response = f'pic%{imgname}%data:image/jpeg;base64,{base64.b64encode(img).decode("utf-8")}'
 
     return response
 
