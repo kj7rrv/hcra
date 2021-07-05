@@ -1,7 +1,7 @@
 # hcra
 HamClock Remote Access - access HamClock remotely
 
-This is currently in early development.
+See the client and server READMEs for more information.
 
 ## Client
 The client is in the `client` directory.

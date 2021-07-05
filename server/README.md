@@ -43,6 +43,21 @@ HamClock's built-in port 8080 service, or it can use X11. The X11 method is
 highly recommended when it can be used, because it does not occasionally
 freeze when HamClock is on certain screens like the port 8080 backend does.
 
+### Port 8080
+
+The Port 8080 backend just requires a running instance of 800x480 HamClock.
+
+### X11
+
+The X11 backend requires 800x480 HamClock to be running on Xvfb at a
+resolution of `800x480x24`.
+
+For example:
+
+    Xvfb :1 -screen 0 800x480x24
+
+Replace :1 with the desired display number.
+
 ## `conf.txt`
 
 The server will not work without a `conf.txt` file. This file is a
@@ -57,7 +72,8 @@ Use `x11` for the X11 backend, or `port8080` for the port 8080 backend.
 
 ### `display`
 
-X11 display to use, such as `:1`. Has no effect with the `port8080` backend.
+X11 display to use, such as `:1`. Must be the same as the one used for Xvfb
+and HamClock. Has no effect with the `port8080` backend.
 
 ### `password_argon2`
 
