@@ -1,0 +1,5 @@
+imagemagick
+libx11-dev
+x11-apps
+xdotool
+xvfb
