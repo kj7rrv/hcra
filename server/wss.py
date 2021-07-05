@@ -75,6 +75,7 @@ class Client:
 class HCRAServer(tornado.websocket.WebSocketHandler):
     def open(self):
         self.has_auth = False
+        self.version = None
 
     def on_close(self):
         global client
@@ -85,10 +86,15 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
 
     def on_message(self, message):
         action = message.split(' ', 1)[0]
-        if not self.has_auth:
-            print(message)
-            print(action)
-            print(action != 'pass')
+        if self.version is None:
+            if action == 'maxver':
+                self.version = min(int(message.split(' ', 1)[1]), 1)
+                self.write_message(f'ver%{self.version}')
+            else:
+                self.write_message('err%*mustmaxver%Client must send version')
+                self.close()
+                return
+        elif not self.has_auth:
             if action != 'pass':
                 self.write_message('err%*mustauth%Authentication required')
                 self.close()
@@ -125,7 +131,6 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
             if action == 'ack':
                 self.client.good = True
             else:
-                print(message)
                 _, x, y, w, is_long = message.split(' ')
                 x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
                 imgproc.touch(x, y, w, is_long)

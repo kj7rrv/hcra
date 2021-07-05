@@ -24,7 +24,9 @@ function setup() {
 		window.m = e
 		let type, pos, x, y, data, img, code, msg
 		type = e.data.split('%')[0]
-		if ( type == 'pic' ) {
+		if (type == 'ver') {
+			ws.send('pass ' + localStorage.getItem('password'))
+		} else if ( type == 'pic' ) {
 			pos = e.data.split('%')[1]
 			x = Number(pos.split('x')[0])
 			y = Number(pos.split('x')[1])
@@ -63,7 +65,7 @@ function setup() {
 		canvas.style.display = 'none'
 	}
 	ws.onopen = function(e) {
-		ws.send('pass ' + localStorage.getItem('password'))
+		ws.send('maxver 1')
 	}
 	setInterval(function(){ws.send('ack')}, 3000)
 }
