@@ -74,24 +74,7 @@ class Client:
 
 class HCRAServer(tornado.websocket.WebSocketHandler):
     def open(self):
-        try:
-            self.client = Client(self)
-        except DisconnectError as e:
-            self.write_message(str(e))
-            return
-
-        try:
-            imgname = imgproc.get_full_img()
-        except Exception as e:
-            self.write_message('err%noconn%Server failed to capture screenshot')
-            return
-
-        with open(imgname, 'rb') as f:
-            img = f.read()
-        os.unlink(imgname)
-        self.write_message(f'pic%0x0%data:image/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
-        self.is_open = True
-        self.client.ack()
+        self.has_auth = False
 
     def on_close(self):
         global client
@@ -102,17 +85,50 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
 
     def on_message(self, message):
         action = message.split(' ', 1)[0]
-        if action == 'ack':
-            self.client.good = True
-        else:
-            _, password, x, y, w, is_long = message.split(' ')
+        if not self.has_auth:
+            print(message)
+            print(action)
+            print(action != 'pass')
+            if action != 'pass':
+                self.write_message('err%*mustauth%Authentication required')
+                self.close()
+                return
+
             try:
-                ph.verify(config_data['password_argon2'], password)
+                ph.verify(config_data['password_argon2'], message.split(' ', 1)[1])
+            except argon2.exceptions.VerifyMismatchError:
+                self.write_message(f'err%*badpass%Incorrect password')
+                self.close()
+                return
+
+            try:
+                self.client = Client(self)
+            except DisconnectError as e:
+                self.write_message(str(e))
+                return
+
+            try:
+                imgname = imgproc.get_full_img()
+            except Exception as e:
+                self.write_message('err%noconn%Server failed to capture screenshot')
+                return
+
+            with open(imgname, 'rb') as f:
+                img = f.read()
+            os.unlink(imgname)
+            self.write_message(f'pic%0x0%data:image/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
+            self.is_open = True
+            self.client.ack()
+
+            self.has_auth = True
+        else:
+            if action == 'ack':
+                self.client.good = True
+            else:
+                print(message)
+                _, x, y, w, is_long = message.split(' ')
                 x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
                 imgproc.touch(x, y, w, is_long)
-            except argon2.exceptions.VerifyMismatchError:
-                self.client.send(f'err%*badpass%Incorrect password', 'BADPASS')
-                self.close()
 
     def check_origin(self, origin):
         return True

@@ -62,6 +62,9 @@ function setup() {
 		errorbox.style.display = 'block'
 		canvas.style.display = 'none'
 	}
+	ws.onopen = function(e) {
+		ws.send('pass ' + localStorage.getItem('password'))
+	}
 	setInterval(function(){ws.send('ack')}, 3000)
 }
 
@@ -79,7 +82,7 @@ function release(e) {
 	y = e.layerY
 	w = displayWidth
 	length = is_short?false:true
-	ws.send('touch ' + localStorage.getItem('password') + ' ' + x + ' ' + y + ' ' + w + ' ' + length)
+	ws.send('touch ' + x + ' ' + y + ' ' + w + ' ' + length)
 	clearTimeout(click_timeout)
 	is_short = true
 }
