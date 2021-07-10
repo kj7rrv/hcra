@@ -108,6 +108,8 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
                 self.close()
                 return
 
+            self.has_auth = True
+
             try:
                 self.client = Client(self)
             except DisconnectError as e:
@@ -129,7 +131,6 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
             self.is_open = True
             self.client.ack()
 
-            self.has_auth = True
         else:
             if action == 'ack':
                 self.client.good = True

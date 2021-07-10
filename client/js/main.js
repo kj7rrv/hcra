@@ -26,6 +26,7 @@ function setup() {
 		type = e.data.split('%')[0]
 		if (type == 'ver') {
 			ws.send('pass ' + localStorage.getItem('password'))
+			setInterval(function(){ws.send('ack')}, 3000)
 		} else if ( type == 'pic' ) {
 			pos = e.data.split('%')[1]
 			x = Number(pos.split('x')[0])
@@ -67,7 +68,6 @@ function setup() {
 	ws.onopen = function(e) {
 		ws.send('maxver 1')
 	}
-	setInterval(function(){ws.send('ack')}, 3000)
 }
 
 
