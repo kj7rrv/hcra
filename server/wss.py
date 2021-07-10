@@ -212,7 +212,7 @@ try:
         (r"/", HCRAServer),
         ('/' + token, Cycler),
     ])
-    application.listen(1234)
+    application.listen(int(config['port']))
     threading.Thread(target=get_token).start()
     tornado.ioloop.IOLoop.current().start()
 finally:

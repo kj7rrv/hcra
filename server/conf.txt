@@ -1,0 +1,4 @@
+backend x11 
+display :1
+port 1234
+password_argon2 $argon2id$v=19$m=102400,t=2,p=8$NExqSUh+0wzBznBG9jM6ww$MkaPLZ6WPAegb8BI+IL7Bg
