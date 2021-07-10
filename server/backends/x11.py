@@ -25,3 +25,11 @@ def touch(x, y, is_long):
         threading.Thread(target=_long_touch, args=(x, y,)).start()
     else:
         subprocess.run(['xdotool', 'mousemove', str(x), str(y), 'click', '1'])
+
+
+def connect():
+    pass
+
+
+def disconnect():
+    pass

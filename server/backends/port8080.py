@@ -12,3 +12,11 @@ def get_img():
 
 def touch(x, y, is_long):
     requests.get(f'http://localhost:8080/set_touch?x={x}&y={y}&hold={1 if is_long else 0}')
+
+
+def connect():
+    pass
+
+
+def disconnect():
+    pass

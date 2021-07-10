@@ -83,6 +83,7 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
             self.client.good = None
             client = None
         self.is_open = False
+        imgproc.backend.disconnect()
 
     def on_message(self, message):
         action = message.split(' ', 1)[0]
@@ -112,6 +113,8 @@ class HCRAServer(tornado.websocket.WebSocketHandler):
             except DisconnectError as e:
                 self.write_message(str(e))
                 return
+            
+            imgproc.backend.connect()
 
             try:
                 imgname = imgproc.get_full_img()
