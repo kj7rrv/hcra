@@ -55,8 +55,16 @@ resolution of `800x480x24`.
 For example:
 
     Xvfb :1 -screen 0 800x480x24
+    DISPLAY=:1 path-to-hamclock
 
 Replace :1 with the desired display number.
+
+### Custom
+
+If you write your own backend, just put it in the `backends` folder and
+specify its file name (without `.py`) in `conf.txt`. Make sure you don't
+accidentally commit it if you don't want to!
+<!-- TODO: document API -->
 
 ## `conf.txt`
 
