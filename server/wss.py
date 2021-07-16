@@ -41,11 +41,9 @@ class Client:
         client = self
         self.server = server
         self.client = client_
-        #self.conn = conn
         self.lock = threading.Lock()
         self.has_auth = False
         self.ready_for_msgs = False
-        print('srfm')
         self.acked = True
         self.version = None
         self.next_msg = None
@@ -67,6 +65,14 @@ class Client:
     def got_ack(self):
         self.acked = True
         self.do_send()
+
+
+def on_left(client_, server):
+    global client
+    if client_ != client.client:
+        return
+    
+    client.close()
 
 
 def on_message(client_, server, message):
@@ -137,8 +143,14 @@ def get_img_msg():
 def cycle():
     if client is not None:
         msg = get_img_msg()
-        client.next_msg = msg
-        client.do_send()
+        try:
+            client.next_msg = msg
+            client.do_send()
+        except AttributeError as e:
+            if "'NoneType' object has no attribute" in str(e):
+                return
+            else:
+                raise e
 
 def do_cycles():
     while True:
@@ -150,4 +162,5 @@ threading.Thread(target=do_cycles).start()
 server = WebsocketServer(int(config_data['port']), host='0.0.0.0', loglevel=logging.INFO)
 server.set_fn_new_client(on_connect)
 server.set_fn_message_received(on_message)
+server.set_fn_client_left(on_left)
 server.run_forever()
