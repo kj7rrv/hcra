@@ -41,7 +41,6 @@ class Client:
         client = self
         self.server = server
         self.client = client_
-        self.lock = threading.Lock()
         self.has_auth = False
         self.ready_for_msgs = False
         self.acked = True
@@ -63,8 +62,8 @@ class Client:
             self.acked = False
 
     def got_ack(self):
-        self.acked = True
-        self.do_send()
+            self.acked = True
+            self.do_send()
 
 
 def on_left(client_, server):
