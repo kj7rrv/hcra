@@ -43,6 +43,11 @@ HamClock's built-in port 8080 service, or it can use X11. The X11 method is
 highly recommended when it can be used, because it does not occasionally
 freeze when HamClock is on certain screens like the port 8080 backend does.
 
+A variant on the X11 backend, called the SaaS backend, is also available. It
+works the same way, except it starts HamClock on its own and stops it when
+the user disconnects. This is intended for cloud/SaaS environments that may
+run multiple HamClocks for different users.
+
 ### Port 8080
 
 The Port 8080 backend just requires a running instance of 800x480 HamClock.
@@ -58,6 +63,10 @@ For example:
     DISPLAY=:1 path-to-hamclock
 
 Replace :1 with the desired display number.
+
+### SaaS
+
+The SaaS backend 
 
 ### Custom
 
