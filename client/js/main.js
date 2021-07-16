@@ -28,15 +28,8 @@ function setup() {
 			ws.send('pass ' + localStorage.getItem('password'))
 			setInterval(function(){ws.send('ack')}, 3000)
 		} else if ( type == 'pic' ) {
-			pos = e.data.split('%')[1]
-			x = Number(pos.split('x')[0])
-			y = Number(pos.split('x')[1])
 			data = e.data.split('%')[2]
-			img = new Image()
-			img.src = data
-			img.addEventListener("load", function(){
-				ctx.drawImage(img,x,y)
-			})
+			canvas.src = data
 			errorbox.style.display = 'none'
 			canvas.style.display = 'block'
 		} else if ( type == 'err' ) {
@@ -100,7 +93,7 @@ function connect(e) {
 }
 
 
-let canvas = document.querySelector('canvas')
+let canvas = document.querySelector('#canvas')
 let errorbox = document.querySelector('#errorbox')
 
 let login = document.querySelector('#login')
@@ -112,8 +105,6 @@ let start_button = document.querySelector('#start')
 
 let is_short = true
 let click_timeout
-
-let ctx = canvas.getContext("2d")
 
 let displayWidth, displayHeight
 
