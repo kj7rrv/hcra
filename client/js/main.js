@@ -73,8 +73,8 @@ function touch(e) {
 
 
 function release(e) {
-	x = e.layerX
-	y = e.layerY
+	x = e.offsetX || e.layerX
+	y = e.offsetY || e.layerY
 	w = displayWidth
 	length = is_short?false:true
 	ws.send('touch ' + x + ' ' + y + ' ' + w + ' ' + length)
