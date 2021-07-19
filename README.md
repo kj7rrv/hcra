@@ -8,3 +8,6 @@ The client is in the `client` directory.
 
 ## Server
 The server is in the `server` directory.
+
+## Thanks
+* Elwood Downey WB0OEW for [HamClock](https://clearskyinstitute.com/ham/HamClock/)
