@@ -1,19 +1,14 @@
 import argon2
-import asyncio
 import base64
 import imgproc
 import importlib
+import logging
 import os
 import parse_config
-import random
-import requests
-import secrets
-import shutil
 import sys
-import tempfile
 import threading
 import time
-import tornado.web, tornado.websocket, tornado.ioloop
+from websocket_server import WebsocketServer
 
 try:
     conf = sys.argv[1]
@@ -23,16 +18,14 @@ except IndexError:
 with open(conf) as f:
     config_data = parse_config.load(f)
 
-imgproc.backend = importlib.import_module(f'backends.{config_data["backend"]}')
-imgproc.backend.config = config_data
+backend = importlib.import_module(f'backends.{config_data["backend"]}')
+backend.config = config_data
 imgproc.config = config_data
+imgproc.backend = backend
 
 ph = argon2.PasswordHasher()
 
 client = None
-
-
-token = secrets.token_urlsafe(64)
 
 
 class DisconnectError(BaseException):
@@ -40,181 +33,133 @@ class DisconnectError(BaseException):
 
 
 class Client:
-    def __init__(self, conn):
+    def __init__(self, server, client_):
         global client
         if client is not None:
             raise DisconnectError('err%*inuse%Server already in use')
 
         client = self
-        self.conn = conn
-        self.items = {}
-        self.lock = threading.Lock()
-        self.good = True
-
-    def send(self, item, name):
-        with self.lock:
-            self.items[name] = item
-
-    def ack(self):
-        with self.lock:
-            self.good = False
-
-    def get_item_to_send(self):
-        with self.lock:
-            if self.items:
-                name, content = list(self.items.items())[0]
-                del self.items[name]
-                return name, content
-            elif not self.good:
-                return 'ack', 'ack'
-            else:
-                return None, None
-
-
-
-class HCRAServer(tornado.websocket.WebSocketHandler):
-    def open(self):
+        self.server = server
+        self.client = client_
         self.has_auth = False
+        self.ready_for_msgs = False
+        self.acked = True
         self.version = None
+        self.next_msg = None
 
-    def on_close(self):
+    def close(self):
         global client
-        if client is self.client:
-            self.client.good = None
-            client = None
-        self.is_open = False
+        self.ready_for_msgs = False
+        client = None
         imgproc.backend.disconnect()
 
-    def on_message(self, message):
-        action = message.split(' ', 1)[0]
-        if self.version is None:
-            if action == 'maxver':
-                self.version = min(int(message.split(' ', 1)[1]), 1)
-                self.write_message(f'ver%{self.version}')
-            else:
-                self.write_message('err%*mustmaxver%Client must send version')
-                self.close()
-                return
-        elif not self.has_auth:
-            if action != 'pass':
-                self.write_message('err%*mustauth%Authentication required')
-                self.close()
-                return
+    def do_send(self):
+        if self.next_msg is not None and self.ready_for_msgs and self.acked:
+            msg = self.next_msg
+            self.next_msg = None
+            self.server.send_message(self.client, msg)
+            self.server.send_message(self.client, 'ack')
+            self.acked = False
 
-            try:
-                ph.verify(config_data['password_argon2'], message.split(' ', 1)[1])
-            except argon2.exceptions.VerifyMismatchError:
-                self.write_message(f'err%*badpass%Incorrect password')
-                self.close()
-                return
+    def got_ack(self):
+            self.acked = True
+            self.do_send()
 
-            self.has_auth = True
 
-            try:
-                self.client = Client(self)
-            except DisconnectError as e:
-                self.write_message(str(e))
-                return
-            
-            imgproc.backend.connect()
+def on_left(client_, server):
+    global client
+    if client_ != client.client:
+        return
+    
+    client.close()
 
-            try:
-                imgname = imgproc.get_full_img()
-            except Exception as e:
-                self.write_message('err%noconn%Server failed to capture screenshot')
-                return
 
-            with open(imgname, 'rb') as f:
-                img = f.read()
-            os.unlink(imgname)
-            self.write_message(f'pic%0x0%data:image/jpeg;base64,{base64.b64encode(img).decode("utf-8")}')
-            self.is_open = True
-            self.client.ack()
-
-        else:
-            if action == 'ack':
-                self.client.good = True
-            else:
-                _, x, y, w, is_long = message.split(' ')
-                x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
-                imgproc.touch(x, y, w, is_long)
-
-    def check_origin(self, origin):
-        return True
-
-def cycle():
-    try:
-        changed = imgproc.get_split_imgs()
-    except Exception as e:
-        if client is not None:
-            client.send('err%noconn%Server failed to capture screenshot', 'ERR')
-        time.sleep(3)
+def on_message(client_, server, message):
+    global client
+    if client_ != client.client:
         return
 
-    threads = []
-    for i in changed:
-        thread = threading.Thread(target=do_img, args=(i,))
-        threads.append(thread)
-        thread.start()
+    action = message.split(' ', 1)[0]
+    if client.version is None:
+        if action == 'maxver':
+            client.version = min(int(message.split(' ', 1)[1]), 1)
+            server.send_message(client_, f'ver%{client.version}')
+        else:
+            server.send_message(client_, 'err%*mustmaxver%Client must send version')
+            client_['handler'].send_text("", opcode=0x8)
+            return
+    elif not client.has_auth:
+        if action != 'pass':
+            server.send_message(client_, 'err%*mustauth%Authentication required')
+            client_['handler'].send_text("", opcode=0x8)
+            return
 
+        try:
+            ph.verify(config_data['password_argon2'], message.split(' ', 1)[1])
+        except argon2.exceptions.VerifyMismatchError:
+            server.send_message(client_, f'err%*badpass%Incorrect password')
+            client_['handler'].send_text("", opcode=0x8)
+            return
+
+        client.has_auth = True
+        
+        imgproc.backend.connect()
+
+        client.ready_for_msgs = True
+        client.do_send()
+
+    else:
+        if action == 'ack':
+            client.got_ack()
+        else:
+            _, x, y, w, is_long = message.split(' ')
+            x, y, w, is_long = int(x), int(y), int(w), is_long == 'true'
+            imgproc.touch(x, y, w, is_long)
+
+
+def on_connect(client_, server):
+    try:
+        client = Client(server, client_)
+    except DisconnectError as e:
+        server.send_message(client_, str(e))
+        client_['handler'].send_text("", opcode=0x8)
+        return
+
+
+def get_img_msg():
+    try:
+        img = imgproc.get_img()
+    except Exception as e:
+        return 'err%noconn%Server failed to capture screenshot'
+
+    with open(img, 'rb') as f:
+        img_data = f.read()
+    
+    os.unlink(img)
+
+    return f'pic%0x0%data:image/webp;base64,{base64.b64encode(img_data).decode("utf-8")}'
+
+def cycle():
     if client is not None:
-        client.ack()
-
-
-def do_img(imgname):
-    if client is not None:
-        client.send(img(imgname), imgname)
-
-
-def img(imgname):
-    with open(f'pieces/{imgname}.jpg', 'rb') as f:
-        img = f.read()
-
-    response = f'pic%{imgname}%data:image/jpeg;base64,{base64.b64encode(img).decode("utf-8")}'
-
-    return response
-
+        msg = get_img_msg()
+        try:
+            client.next_msg = msg
+            client.do_send()
+        except AttributeError as e:
+            if "'NoneType' object has no attribute" in str(e):
+                return
+            else:
+                raise e
 
 def do_cycles():
     while True:
-        if client is not None:
-            cycle()
-            time.sleep(0.4)
-        else:
-            time.sleep(1)
+        cycle()
+        time.sleep(0.8)
 
 
-
-
-class Cycler(tornado.web.RequestHandler):
-    def get(self):
-        if client is not None:
-            name, item = client.get_item_to_send()
-            if item is not None:
-                client.conn.write_message(item)
-        self.write('OK')
-
-
-def get_token():
-    while True:
-        requests.get('http://localhost:1234/' + token)
-
-
-tmp = tempfile.mkdtemp(prefix="HCRA-")
-try:
-    shutil.copy('crops.json', tmp)
-    os.chdir(tmp)
-    os.mkdir('pieces')
-
-    threading.Thread(target=do_cycles).start()
-
-    application = tornado.web.Application([
-        (r"/", HCRAServer),
-        ('/' + token, Cycler),
-    ])
-    application.listen(int(config['port']))
-    threading.Thread(target=get_token).start()
-    tornado.ioloop.IOLoop.current().start()
-finally:
-    os.chdir('/')
-    shutil.rmtree(tmp)
+threading.Thread(target=do_cycles).start()
+server = WebsocketServer(int(config_data['port']), host='0.0.0.0', loglevel=logging.INFO)
+server.set_fn_new_client(on_connect)
+server.set_fn_message_received(on_message)
+server.set_fn_client_left(on_left)
+server.run_forever()
