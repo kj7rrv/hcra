@@ -7,6 +7,10 @@ On its own, the server is useless; it requires HamClock, available at
 http://clearskyinstitute.com/ham/HamClock/ (installed on the same machine as
 the HCRA server), and the HCRA client (see `../client`).
 
+The server code is in the `ws_server` directory; unless otherwise noted, all
+commands and instructions assume you have `cd`ed into that directory.
+Utilities for server configuration etc. are in the `utils` directory.
+
 ## Installation
 
 The server itself does not need to be installed; it is simply run with
@@ -25,13 +29,15 @@ The server itself does not need to be installed; it is simply run with
 
 #### Other distros
 
-Unfortunately, I only have Mint computers, so I can't help with other
-distros.
+I only have Mint and Ubuntu computers, so I can't give package names for other
+distros. If you get it working on another distro, please create a pull request
+adding instructions to this file!
 
 You will need the following:
 
+* Python 3
+* `pip` (for Python 3)
 * ImageMagick 6
-* X11 development headers
 * `Xvfb`
 * `xdotool`
 * `xwd`
@@ -94,4 +100,5 @@ and HamClock. Has no effect with the `port8080` backend.
 
 ### `password_argon2`
 
-Argon2-hashed password. Use `pwhash.py` to generate a hashed password.
+Argon2-hashed password. Use `pwhash.py` (in `utils`, not `ws_server`) to
+generate a hashed password.
