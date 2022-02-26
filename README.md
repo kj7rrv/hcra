@@ -1,3 +1,6 @@
+# MOVED
+Moved to [my Gitea instance](https://git.kj7rrv.com/kj7rrv/hcra)
+
 # hcra
 HamClock Remote Access - access HamClock remotely
 
